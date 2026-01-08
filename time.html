@@ -1,0 +1,134 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Effective Hours Calculator</title>
+<style>
+    body {
+        font-family: Arial, sans-serif;
+        background: #f7f9fc;
+        color: #333;
+        padding: 30px;
+        max-width: 600px;
+        margin: auto;
+    }
+    textarea {
+        width: 100%;
+        height: 150px;
+        font-family: monospace;
+        padding: 10px;
+        font-size: 14px;
+    }
+    button {
+        padding: 10px 20px;
+        margin-top: 10px;
+        font-size: 16px;
+        background-color: #007bff;
+        color: white;
+        border: none;
+        border-radius: 5px;
+        cursor: pointer;
+    }
+    button:hover {
+        background-color: #0056b3;
+    }
+    .result {
+        background: #fff;
+        padding: 15px;
+        border-radius: 8px;
+        margin-top: 20px;
+        box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+    }
+    h2 {
+        text-align: center;
+    }
+</style>
+</head>
+<body>
+    <h2>Effective Working Hours Calculator</h2>
+    <p>Paste your punch logs below (one per line, e.g. <i>8:40:40 AM</i>)</p>
+    <textarea id="punches" placeholder="Example:
+8:40:40 AM
+10:33:26 AM
+10:39:30 AM
+11:19:34 AM
+11:24:35 AM
+1:22:04 PM
+1:33:17 PM
+3:01:07 PM
+3:21:17 PM
+4:11:29 PM
+4:24:31 PM
+7:11:10 PM"></textarea>
+    <button onclick="calculateHours()">Calculate</button>
+
+    <div class="result" id="result"></div>
+
+<script>
+function parseTime(t) {
+    const d = new Date("1970/01/01 " + t);
+    return isNaN(d) ? null : d.getTime();
+}
+
+function formatDuration(ms) {
+    const totalSec = Math.floor(ms / 1000);
+    const hrs = Math.floor(totalSec / 3600);
+    const mins = Math.floor((totalSec % 3600) / 60);
+    const secs = totalSec % 60;
+    return `${hrs}h ${mins}m ${secs}s`;
+}
+
+function calculateHours() {
+    const text = document.getElementById("punches").value.trim();
+    const lines = text.split(/\n+/).map(l => l.trim()).filter(Boolean);
+    const times = lines.map(parseTime).filter(Boolean);
+
+    if (times.length < 2) {
+        document.getElementById("result").innerHTML = "<b>Please enter at least two valid punch times.</b>";
+        return;
+    }
+
+    let gross = times[times.length - 1] - times[0];
+    let breaks = 0;
+
+    for (let i = 1; i < times.length - 1; i += 2) {
+        if (times[i + 1]) breaks += (times[i + 1] - times[i]);
+    }
+
+    const effective = gross - breaks;
+    const required = 8.5 * 3600 * 1000; // 8 hrs 30 mins in ms
+    const resultDiv = document.getElementById("result");
+
+    const lastPunch = new Date(times[times.length - 1]);
+    const sixThirty = new Date("1970/01/01 6:30:00 PM");
+
+    let msg = `
+        <b>Gross Hours:</b> ${formatDuration(gross)}<br>
+        <b>Total Breaks:</b> ${formatDuration(breaks)}<br>
+        <b>Effective Hours:</b> ${formatDuration(effective)}<br><br>
+    `;
+
+    // Rule 1: Must not leave before 6:30 PM, even if 8h30m completed
+    if (effective >= required) {
+        if (lastPunch < sixThirty) {
+            msg += `<span style="color:orange; font-weight:bold;">⚠️ You have completed 8h 30m, but you cannot leave before 6:30 PM.</span>`;
+        } else {
+            msg += `<span style="color:green; font-weight:bold;">✅ You have completed your 8h 30m requirement and it's past 6:30 PM. You can leave now!</span>`;
+        }
+    } 
+    // Rule 2: If not yet completed by 6:30 PM, stay until done
+    else {
+        const remaining = required - effective;
+        const estimatedLeave = new Date(Math.max(times[times.length - 1] + remaining, sixThirty.getTime()));
+        const leaveTime = estimatedLeave.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'});
+        msg += `<span style="color:red; font-weight:bold;">⏳ You still need ${formatDuration(remaining)}.<br>
+        Estimated Leaving Time: ${leaveTime}</span>`;
+    }
+
+    resultDiv.innerHTML = msg;
+}
+</script>
+
+</body>
+</html>
